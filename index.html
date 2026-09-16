@@ -562,6 +562,30 @@
             font-weight: bold;
         }
 
+        /* Control de hora simulada, solo para pruebas */
+        .debug-time {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.15);
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        .debug-time input[type="time"] {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #eee;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            color-scheme: dark;
+        }
+
         /* Animaciones dinámicas */
         .smoke-particle {
             position: absolute;
@@ -713,6 +737,11 @@
                 <span>100% (Erupción)</span>
             </div>
         </div>
+
+        <!-- <div class="debug-time">
+            <label for="debugTimeInput">🕐 Probar hora (cielo/sol, solo para pruebas)</label>
+            <input type="time" id="debugTimeInput" oninput="setDebugTime(this.value)">
+        </div> -->
     </div>
 
     <script>
@@ -736,6 +765,56 @@
         const typeButtons = document.getElementById('typeButtons');
 
         let particleInterval = null;
+
+        // Hora usada para el cielo de la fase de reposo (0%-15%) y la posición del sol.
+        // Arranca en la hora real al abrir el archivo; el campo de pruebas la pisa.
+        let simulatedTime = new Date();
+
+        function skyByHour(hour) {
+            if (hour < 5) return 'linear-gradient(to bottom, #05070f 0%, #131b3a 100%)'; // madrugada
+            if (hour < 7) return 'linear-gradient(to bottom, #ff9a76 0%, #f6c667 55%, #87b8e8 100%)'; // amanecer
+            if (hour < 17) return '#74b9ff'; // día
+            if (hour < 19) return 'linear-gradient(to bottom, #2c3e50 0%, #e17055 60%, #fdcb6e 100%)'; // atardecer
+            return 'linear-gradient(to bottom, #05070f 0%, #0f1a3a 100%)'; // noche
+        }
+
+        // Recorrido del sol solo entre el amanecer (6:00) y el atardecer (18:00): arco
+        // semicircular grande, pegado al horizonte en amanecer/atardecer y asomando por
+        // encima del escenario al mediodía. Fuera de ese rango queda oculto (de noche
+        // no cruza la pantalla ni hay salto al pasar de 23:59 a 00:00).
+        const SUNRISE_MIN = 6 * 60;
+        const SUNSET_MIN = 18 * 60;
+
+        function sunPositionByHour(hour, minutes) {
+            const totalMinutes = hour * 60 + minutes;
+            if (totalMinutes < SUNRISE_MIN || totalMinutes > SUNSET_MIN) {
+                return { left: 50, top: 90, visible: false };
+            }
+
+            const t = (totalMinutes - SUNRISE_MIN) / (SUNSET_MIN - SUNRISE_MIN); // 0 a 1 entre amanecer y atardecer
+            const xn = t * 2 - 1; // -1 a 1
+            const arcHeight = Math.sqrt(Math.max(0, 1 - xn * xn)); // 0 en los bordes, 1 al centro
+            return { left: t * 100, top: 90 - arcHeight * 100, visible: true };
+        }
+
+        function applySunPosition() {
+            const pos = sunPositionByHour(simulatedTime.getHours(), simulatedTime.getMinutes());
+            sun.style.right = 'auto';
+            sun.style.left = `${pos.left}%`;
+            sun.style.top = `${pos.top}%`;
+            sun.style.opacity = pos.visible ? '1' : '0';
+        }
+
+        // Campo de pruebas: pisa la hora simulada con un <input type="time"> y
+        // refresca el cielo (si estamos en la fase de reposo) y la posición del sol.
+        function setDebugTime(value) {
+            if (!value) return;
+            const [hours, minutes] = value.split(':').map(Number);
+            simulatedTime = new Date();
+            simulatedTime.setHours(hours, minutes, 0, 0);
+            applySunPosition();
+            updateVolcano(volcanoSlider.value);
+        }
 
         // Botones de acceso rápido a cada tipo de volcán: mueven el slider y disparan
         // la misma actualización que arrastrarlo a mano.
@@ -771,7 +850,7 @@
                 phaseBadge.style.backgroundColor = "#2ecc71";
                 phaseDesc.innerText = "Se me dificulta mucho expresar mis emociones. Cuando estoy en situaciones de estrés no hablo con nadie, me aparto de los demás y me aíslo de lo que me rodea. No he logrado encontrar una manera de expresar mis sentimientos.";
                 
-                stage.style.background = "#74b9ff";
+                stage.style.background = skyByHour(simulatedTime.getHours());
                 sun.style.backgroundColor = "#ffd700";
                 sun.style.boxShadow = "0 0 20px #ffd700";
                 ground.style.backgroundColor = "#2d5a27";
@@ -1143,6 +1222,11 @@
             layoutPalms();
             updateHouses(parseInt(volcanoSlider.value));
         });
+
+        // Posición del sol según la hora real, fija al cargar (no se mueve con el slider)
+        applySunPosition();
+        document.getElementById('debugTimeInput').value =
+            `${String(simulatedTime.getHours()).padStart(2, '0')}:${String(simulatedTime.getMinutes()).padStart(2, '0')}`;
 
         // Inicializar simulador en estado Inactivo (0%)
         updateVolcano(0);
