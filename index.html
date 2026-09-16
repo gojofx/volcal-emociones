@@ -21,21 +21,24 @@
             justify-content: center;
             min-height: 100vh;
             overflow-x: hidden;
+            padding: 12px 16px;
         }
 
         h1 {
             margin-top: 15px;
-            font-size: 2rem;
+            font-size: clamp(1.35rem, 5vw, 2rem);
             text-align: center;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
         }
 
-        /* Escenario Principal */
+        /* Escenario Principal. La altura escala de forma continua con el viewport
+           (420px de escritorio a 260px en móvil, el mínimo que sigue conteniendo
+           al volcán de 260px sin recortarlo) para no dejar cielo vacío de sobra. */
         .stage {
             position: relative;
             width: 100%;
             max-width: 800px;
-            height: 420px;
+            height: clamp(260px, calc(37.65vw + 118.8px), 420px);
             margin: 15px 0;
             border-radius: 20px;
             overflow: hidden;
@@ -362,6 +365,48 @@
             z-index: 3;
         }
 
+        /* Mar: mismo truco de máscara con forma de ola que el conducto de magma,
+           así el borde superior no es una línea recta sino el oleaje real. */
+        .ground-sea {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            background-color: #2327fa;
+            transition: background-color 0.3s ease;
+            z-index: 2;
+            -webkit-mask:
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 4"><path d="M0,2 C3.5,0.5 3.5,0.5 7,2 C10.5,3.5 10.5,3.5 14,2 L14,4 L0,4 Z" fill="white"/></svg>') top / 14px 4px repeat-x,
+                linear-gradient(#fff, #fff) 0 4px / 100% calc(100% - 4px) no-repeat;
+            mask:
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 4"><path d="M0,2 C3.5,0.5 3.5,0.5 7,2 C10.5,3.5 10.5,3.5 14,2 L14,4 L0,4 Z" fill="white"/></svg>') top / 14px 4px repeat-x,
+                linear-gradient(#fff, #fff) 0 4px / 100% calc(100% - 4px) no-repeat;
+            animation: seaSurface 2.4s linear infinite;
+        }
+
+        @keyframes seaSurface {
+            from {
+                -webkit-mask-position: 0 0, 0 4px;
+                mask-position: 0 0, 0 4px;
+            }
+            to {
+                -webkit-mask-position: 14px 0, 0 4px;
+                mask-position: 14px 0, 0 4px;
+            }
+        }
+
+        .ground-sea::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 0%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(circle, #dddb96 0%, #e2d770 60%, #dfd767 85%, transparent 100%);
+            border-radius: 50%;
+            transform: translateX(-50%); 
+        }
+
         /* Dientes de sierra que simulan pasto en el borde superior del suelo */
         .ground::before {
             content: '';
@@ -392,7 +437,13 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
             margin-bottom: 10px;
+        }
+
+        .status-header h2 {
+            font-size: clamp(1.05rem, 4vw, 1.4rem);
         }
 
         .phase-badge {
@@ -401,6 +452,7 @@
             border-radius: 20px;
             font-weight: bold;
             font-size: 0.9rem;
+            white-space: nowrap;
             transition: background-color 0.3s;
         }
 
@@ -422,14 +474,14 @@
 
         .type-btn {
             flex: 1;
-            min-width: 110px;
-            padding: 10px 16px;
+            min-width: 0;
+            padding: 10px 8px;
             border-radius: 10px;
             border: 1px solid rgba(255, 255, 255, 0.15);
             background: rgba(255, 255, 255, 0.06);
             color: #eee;
             font-weight: bold;
-            font-size: 0.9rem;
+            font-size: clamp(0.75rem, 2.6vw, 0.9rem);
             cursor: pointer;
             transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
         }
@@ -483,7 +535,8 @@
         .ticks {
             display: flex;
             justify-content: space-between;
-            font-size: 0.8rem;
+            gap: 4px;
+            font-size: clamp(0.65rem, 2.2vw, 0.8rem);
             color: #aaa;
             margin-top: 5px;
             font-weight: bold;
@@ -549,6 +602,41 @@
             75% { transform: translateX(-50%) translate(-1px, -2px); }
             100% { transform: translateX(-50%) translate(1px, 1px); }
         }
+
+        /* Temblor de las casas: usa la propiedad `translate` (no `transform`) para no
+           pisar el transform inline (escala/colapso) que ya les pone updateHouses(). */
+        .house.shake-light {
+            animation: houseShake 0.3s infinite;
+        }
+
+        .house.shake-heavy {
+            animation: houseShake 0.1s infinite;
+        }
+
+        @keyframes houseShake {
+            0% { translate: 0 0; }
+            25% { translate: -0.6px 0.3px; }
+            50% { translate: 0.6px -0.3px; }
+            75% { translate: -0.3px -0.6px; }
+            100% { translate: 0.3px 0.3px; }
+        }
+
+        /* Temblor del mar: todavía más sutil que el de las casas. */
+        .ground-sea.shake-light {
+            animation: seaSurface 2.4s linear infinite, seaShake 0.3s infinite;
+        }
+
+        .ground-sea.shake-heavy {
+            animation: seaSurface 2.4s linear infinite, seaShake 0.1s infinite;
+        }
+
+        @keyframes seaShake {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-0.25px, 0.12px); }
+            50% { transform: translate(0.25px, -0.12px); }
+            75% { transform: translate(-0.12px, -0.25px); }
+            100% { transform: translate(0.12px, 0.12px); }
+        }
     </style>
 </head>
 <body>
@@ -577,6 +665,7 @@
         <div class="side-mountain left"></div>
         <div class="side-mountain right"></div>
         <div class="ground" id="ground"></div>
+        <div class="ground-sea" id="ground-sea"></div>
     </div>
 
     <!-- Controladores e Información -->
@@ -591,9 +680,9 @@
         </p>
 
         <div class="type-buttons" id="typeButtons">
-            <button type="button" class="type-btn" data-type="inactivo" onclick="setVolcanoType(10)">Inactivo</button>
-            <button type="button" class="type-btn" data-type="activo" onclick="setVolcanoType(60)">Activo</button>
-            <button type="button" class="type-btn" data-type="erupcion" onclick="setVolcanoType(90)">Erupción</button>
+            <button type="button" class="type-btn" data-type="inactivo" onclick="setVolcanoType(0)">Inactivo</button>
+            <button type="button" class="type-btn" data-type="activo" onclick="setVolcanoType(50)">Activo</button>
+            <button type="button" class="type-btn" data-type="erupcion" onclick="setVolcanoType(100)">Erupción</button>
         </div>
 
         <div class="slider-container">
@@ -610,6 +699,7 @@
         const stage = document.getElementById('stage');
         const sun = document.getElementById('sun');
         const ground = document.getElementById('ground');
+        const groundSea = document.getElementById('ground-sea');
         const volcanoContainer = document.getElementById('volcanoContainer');
         const craterLava = document.getElementById('craterLava');
         const lavaRiver1 = document.getElementById('lavaRiver1');
@@ -637,7 +727,7 @@
         // Resalta el botón cuyo rango coincide con el valor actual del slider,
         // usando los mismos umbrales de fase que updateVolcano.
         function updateTypeButtons(val) {
-            const type = val <= 50 ? 'inactivo' : val <= 75 ? 'activo' : 'erupcion';
+            const type = val < 50 ? 'inactivo' : val <= 75 ? 'activo' : 'erupcion';
             for (const btn of typeButtons.children) {
                 btn.classList.toggle('active', btn.dataset.type === type);
             }
@@ -650,6 +740,8 @@
             // Limpieza de intervalos y efectos de temblor
             if (particleInterval) clearInterval(particleInterval);
             volcanoContainer.classList.remove('shake-light', 'shake-heavy');
+            groundSea.classList.toggle('shake-light', val >= 50 && val <= 75);
+            groundSea.classList.toggle('shake-heavy', val > 75);
 
             // Lógica Progresiva por Porcentajes
             
@@ -780,6 +872,11 @@
         // como restos negros y planos (ceniza/escombros calcinados).
         function updateHouses(val) {
             for (const house of housesContainer.children) {
+                // Mismo temblor que el volcán (misma cadencia), pero mucho más suave
+                // para que las casas vibren sin competir con su propia animación de colapso.
+                house.classList.toggle('shake-light', val >= 50 && val <= 75);
+                house.classList.toggle('shake-heavy', val > 75);
+
                 if (val <= 70) {
                     house.style.filter = '';
                     house.style.opacity = '1';
@@ -793,8 +890,21 @@
             }
         }
 
+        // Posición real del cráter dentro del stage (en vez de un offset fijo en px
+        // calibrado para el alto de escritorio, que ya no coincide en pantallas chicas
+        // donde el stage es más bajo).
+        function craterOrigin() {
+            const stageRect = stage.getBoundingClientRect();
+            const craterRect = document.querySelector('.crater').getBoundingClientRect();
+            return {
+                x: craterRect.left - stageRect.left + craterRect.width / 2,
+                y: craterRect.top - stageRect.top + craterRect.height / 2
+            };
+        }
+
         // Crear partícula(s) de humo — dos bocanadas por llamada para más densidad
         function createSmoke(isDark, val) {
+            const origin = craterOrigin();
             for (let p = 0; p < 2; p++) {
                 const smoke = document.createElement('div');
                 smoke.classList.add('smoke-particle');
@@ -803,8 +913,8 @@
                 smoke.style.width = `${size}px`;
                 smoke.style.height = `${size}px`;
 
-                smoke.style.left = `calc(50% + ${Math.random() * 50 - 25}px)`;
-                smoke.style.top = '100px';
+                smoke.style.left = `${origin.x + Math.random() * 50 - 25}px`;
+                smoke.style.top = `${origin.y}px`;
 
                 if (isDark) {
                     smoke.style.backgroundColor = `rgba(50, 50, 50, ${Math.min(val / 100, 0.9)})`;
@@ -830,9 +940,10 @@
             lava.style.height = `${size}px`;
 
             // Punto de salida variable dentro del cráter, no siempre el mismo pixel
+            const origin = craterOrigin();
             const spawnOffset = (Math.random() - 0.5) * 24;
-            lava.style.left = `calc(50% + ${spawnOffset}px)`;
-            lava.style.top = '110px';
+            lava.style.left = `${origin.x + spawnOffset}px`;
+            lava.style.top = `${origin.y}px`;
 
             // Cada partícula tiene su propia fuerza, arco y caída: nunca la misma trayectoria
             const force = (val / 100) * 280;
@@ -936,8 +1047,8 @@
         function layoutHouses() {
             housesContainer.innerHTML = '';
             const stageWidth = stage.clientWidth;
-            const houseWidth = 100;
-            const minGap = 12;
+            const houseWidth = 60;
+            const minGap = 4;
             const margin = 10;
             const slot = houseWidth + minGap;
             const count = Math.floor((stageWidth - margin * 2 + minGap) / slot);
