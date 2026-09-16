@@ -1108,9 +1108,20 @@
 
         layoutHouses();
         layoutPalms();
+
+        // En móvil, hacer scroll muestra/oculta la barra de direcciones y dispara
+        // 'resize' aunque el ancho no haya cambiado en absoluto. Reconstruir las casas
+        // en ese caso las reiniciaba a su aspecto intacto. Solo se reacomodan cuando
+        // el ancho del stage realmente cambia, y se les reaplica el estado actual.
+        let lastStageWidth = stage.clientWidth;
         window.addEventListener('resize', () => {
+            const currentWidth = stage.clientWidth;
+            if (currentWidth === lastStageWidth) return;
+            lastStageWidth = currentWidth;
+
             layoutHouses();
             layoutPalms();
+            updateHouses(parseInt(volcanoSlider.value));
         });
 
         // Inicializar simulador en estado Inactivo (0%)
