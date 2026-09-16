@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volcán Interactivo con Barra de Control</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f111a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            margin-top: 15px;
+            font-size: 2rem;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        }
+
+        /* Escenario Principal */
+        .stage {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 420px;
+            margin: 15px 0;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+            background: #74b9ff; /* Se modifica dinámicamente con JS */
+            transition: background 0.2s linear;
+        }
+
+        /* Sol / Astro */
+        .sun {
+            position: absolute;
+            top: 40px;
+            right: 60px;
+            width: 60px;
+            height: 60px;
+            background-color: #ffd700;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #ffd700;
+            transition: all 0.2s linear;
+        }
+
+        /* Contenedor de Partículas (Humo, Lava) */
+        .particle-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* Nubes procedurales, ajenas al estado del volcán */
+        .cloud-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 50px;
+            animation: cloudDrift linear forwards;
+        }
+
+        .cloud::before,
+        .cloud::after {
+            content: '';
+            position: absolute;
+            background: inherit;
+            border-radius: 50%;
+        }
+
+        .cloud::before {
+            width: 55%;
+            height: 140%;
+            top: -70%;
+            left: 8%;
+        }
+
+        .cloud::after {
+            width: 40%;
+            height: 110%;
+            top: -55%;
+            right: 12%;
+        }
+
+        @keyframes cloudDrift {
+            from { transform: translateX(0); }
+            to { transform: translateX(var(--dist)); }
+        }
+
+        /* Contenedor del Volcán */
+        .volcano-container {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 360px;
+            height: 260px;
+            z-index: 1;
+        }
+
+        /* Silueta del Volcán */
+        .volcano {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #4a3b32;
+            clip-path: polygon(30% 25%, 70% 25%, 100% 100%, 0% 100%);
+            transition: background-color 0.3s;
+        }
+
+        .volcano-details {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #382c25;
+            clip-path: polygon(45% 25%, 70% 25%, 100% 100%, 55% 100%);
+        }
+
+        /* Cráter (Magma interno) */
+        .crater {
+            position: absolute;
+            top: 23%;
+            left: 30%;
+            width: 40%;
+            height: 16px;
+            background-color: #222;
+            border-radius: 50%;
+            overflow: hidden;
+            z-index: 2;
+        }
+
+        .crater-lava {
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, #fffa65 0%, #ff3838 80%);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        /* Ríos de Lava */
+        .lava-river {
+            position: absolute;
+            top: 25%;
+            left: 48%;
+            width: 14px;
+            height: 0%;
+            background: linear-gradient(to bottom, #fffa65, #ff3838, #c0392b);
+            border-radius: 8px;
+            box-shadow: 0 0 10px #ff3838;
+            opacity: 0;
+            transition: height 0.2s ease, opacity 0.2s ease;
+            z-index: 2;
+        }
+
+        /* Trazos adicionales de lava, solo en erupción máxima (100%) */
+        .lava-stream {
+            position: absolute;
+            top: 25%;
+            height: 0%;
+            opacity: 0;
+            background: linear-gradient(to bottom, #fffa65, #ff3838, #c0392b);
+            border-radius: 8px;
+            box-shadow: 0 0 10px #ff3838;
+            z-index: 2;
+        }
+
+        .lava-river-2 {
+            position: absolute;
+            top: 25%;
+            left: 38%;
+            width: 10px;
+            height: 0%;
+            background: linear-gradient(to bottom, #fffa65, #e74c3c);
+            border-radius: 8px;
+            box-shadow: 0 0 10px #ff3838;
+            opacity: 0;
+            transition: height 0.2s ease, opacity 0.2s ease;
+            z-index: 2;
+        }
+
+        /* Casitas repartidas sobre el pasto */
+        .houses-container {
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            width: 100%;
+            height: 80px; /* margen para que algunas casas suban sobre la franja verde */
+            pointer-events: none;
+            z-index: 4; /* debajo del volcán (z-index:1): lo que cae detrás queda tapado */
+        }
+
+        .house {
+            position: absolute;
+            width: 45px;
+            height: 45px;
+            transform-origin: center bottom;
+        }
+
+        /* Palmeras en primer plano, sobre las montañas laterales */
+        .palm-container {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            height: 130px;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .palm {
+            position: absolute;
+            bottom: 0;
+            width: 55px;
+            height: 115px;
+        }
+
+        /* Montañas laterales que tapan los bordes del escenario */
+        .side-mountain {
+            position: absolute;
+            bottom: 0;
+            width: 270px;
+            height: 290px;
+            background-color: #241f1c;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .side-mountain.left {
+            left: -30px;
+            height: 190px;
+            height: 140px;
+            clip-path: polygon(0% 22.75%, 23.5% 28%, 70.39% 54.82%, 100% 100%, 0% 100%);
+        }
+
+        .side-mountain.right {
+            right: -30px;
+            clip-path: polygon(0% 100%, 24.93% 83.9%, 55.84% 46.84%, 85.96% 29%, 100% 35.75%, 100% 100%);
+        }
+
+        /* Suelo */
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 30px;
+            background-color: #2d5a27;
+            transition: background-color 0.3s ease;
+            z-index: 3;
+        }
+
+        /* Dientes de sierra que simulan pasto en el borde superior del suelo */
+        .ground::before {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            background-color: inherit;
+            transition: background-color 0.3s ease;
+            clip-path: polygon(0% 100%, 2.5% 0%, 5% 100%, 7.5% 0%, 10% 100%, 12.5% 0%, 15% 100%, 17.5% 0%, 20% 100%, 22.5% 0%, 25% 100%, 27.5% 0%, 30% 100%, 32.5% 0%, 35% 100%, 37.5% 0%, 40% 100%, 42.5% 0%, 45% 100%, 47.5% 0%, 50% 100%, 52.5% 0%, 55% 100%, 57.5% 0%, 60% 100%, 62.5% 0%, 65% 100%, 67.5% 0%, 70% 100%, 72.5% 0%, 75% 100%, 77.5% 0%, 80% 100%, 82.5% 0%, 85% 100%, 87.5% 0%, 90% 100%, 92.5% 0%, 95% 100%, 97.5% 0%, 100% 100%);
+        }
+
+        /* Panel de Estado y Controles */
+        .control-panel {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 800px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .phase-badge {
+            background-color: #0984e3;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: background-color 0.3s;
+        }
+
+        .status-description {
+            color: #ccc;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            min-height: 40px;
+        }
+
+        /* Estilo del Deslizador (Slider) */
+        .slider-container {
+            position: relative;
+            margin: 20px 0 10px 0;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 15px;
+            border-radius: 10px;
+            background: linear-gradient(to right, #2ecc71, #f1c40f, #e67e22, #e74c3c);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            border: 3px solid #333;
+            transition: transform 0.1s;
+        }
+
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .ticks {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-top: 5px;
+            font-weight: bold;
+        }
+
+        /* Animaciones dinámicas */
+        .smoke-particle {
+            position: absolute;
+            background-color: rgba(200, 200, 200, 0.6);
+            border-radius: 50%;
+            animation: rise 2.5s infinite linear;
+        }
+
+        @keyframes rise {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 0.7;
+            }
+            100% {
+                transform: translateY(-220px) scale(3.5);
+                opacity: 0;
+            }
+        }
+
+        .lava-particle {
+            position: absolute;
+            background-color: #fffa65;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #ff3838;
+            animation-name: explode;
+            animation-timing-function: ease-in;
+            animation-fill-mode: forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            55% {
+                transform: translate(calc(var(--dx) * 0.6), var(--peak)) scale(0.9);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--dx), var(--dy)) scale(0.15);
+                opacity: 0;
+            }
+        }
+
+        /* Efecto Shake / Temblores */
+        .shake-light {
+            animation: shake 0.3s infinite;
+        }
+
+        .shake-heavy {
+            animation: shake 0.1s infinite;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(-50%) translate(0, 0); }
+            25% { transform: translateX(-50%) translate(-2px, 1px); }
+            50% { transform: translateX(-50%) translate(2px, -1px); }
+            75% { transform: translateX(-50%) translate(-1px, -2px); }
+            100% { transform: translateX(-50%) translate(1px, 1px); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🌋 Simulador de Presión Volcánica</h1>
+
+    <!-- Escenario Visual -->
+    <div class="stage" id="stage">
+        <div class="sun" id="sun"></div>
+        <div class="cloud-container" id="cloudContainer"></div>
+        <div class="particle-container" id="particleContainer"></div>
+        
+        <div class="volcano-container" id="volcanoContainer">
+            <div class="volcano"></div>
+            <div class="volcano-details"></div>
+            <div class="crater">
+                <div class="crater-lava" id="craterLava"></div>
+            </div>
+            <div class="lava-river" id="lavaRiver1"></div>
+            <div class="lava-river-2" id="lavaRiver2"></div>
+        </div>
+
+        <div class="houses-container" id="housesContainer"></div>
+        <div class="palm-container" id="palmContainer"></div>
+        <div class="side-mountain left"></div>
+        <div class="side-mountain right"></div>
+        <div class="ground" id="ground"></div>
+    </div>
+
+    <!-- Controladores e Información -->
+    <div class="control-panel">
+        <div class="status-header">
+            <h2 id="activityLevel">Presión del Magma: 0%</h2>
+            <span class="phase-badge" id="phaseBadge">1. Volcán Inactivo</span>
+        </div>
+        
+        <p class="status-description" id="phaseDesc">
+            El volcán se encuentra en reposo absoluto. El cielo está despejado y la naturaleza a su alrededor está a salvo.
+        </p>
+
+        <div class="slider-container">
+            <input type="range" id="volcanoSlider" min="0" max="100" value="0" oninput="updateVolcano(this.value)">
+            <div class="ticks">
+                <span>0% (Inactivo)</span>
+                <span>35% (Activo - Fase Inicial)</span>
+                <span>70% (Activo - Alta Presión)</span>
+                <span>100% (Erupción)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const stage = document.getElementById('stage');
+        const sun = document.getElementById('sun');
+        const ground = document.getElementById('ground');
+        const volcanoContainer = document.getElementById('volcanoContainer');
+        const craterLava = document.getElementById('craterLava');
+        const lavaRiver1 = document.getElementById('lavaRiver1');
+        const lavaRiver2 = document.getElementById('lavaRiver2');
+        const particleContainer = document.getElementById('particleContainer');
+        const cloudContainer = document.getElementById('cloudContainer');
+        const housesContainer = document.getElementById('housesContainer');
+        const palmContainer = document.getElementById('palmContainer');
+        
+        const activityLevel = document.getElementById('activityLevel');
+        const phaseBadge = document.getElementById('phaseBadge');
+        const phaseDesc = document.getElementById('phaseDesc');
+
+        let particleInterval = null;
+
+        function updateVolcano(val) {
+            val = parseInt(val);
+            activityLevel.innerText = `Presión del Magma: ${val}%`;
+
+            // Limpieza de intervalos y efectos de temblor
+            if (particleInterval) clearInterval(particleInterval);
+            volcanoContainer.classList.remove('shake-light', 'shake-heavy');
+
+            // Lógica Progresiva por Porcentajes
+            
+            // --- FASE 1: INACTIVO (0% - 15%) ---
+            if (val <= 15) {
+                phaseBadge.innerText = "1. Volcán Inactivo";
+                phaseBadge.style.backgroundColor = "#2ecc71";
+                phaseDesc.innerText = "El volcán se encuentra en reposo absoluto. El ambiente está en calma sin signos de erupción.";
+                
+                stage.style.background = "#74b9ff";
+                sun.style.backgroundColor = "#ffd700";
+                sun.style.boxShadow = "0 0 20px #ffd700";
+                ground.style.backgroundColor = "#2d5a27";
+
+                craterLava.style.opacity = "0";
+                lavaRiver1.style.height = "0%";
+                lavaRiver1.style.opacity = "0";
+                lavaRiver2.style.height = "0%";
+                lavaRiver2.style.opacity = "0";
+            } 
+            
+            // --- FASE INTERMEDIA: ACTIVIDAD INICIAL / AUMENTO DE PRESIÓN (16% - 50%) ---
+            else if (val > 15 && val <= 50) {
+                phaseBadge.innerText = "2. Volcán Activo (Fase Inicial)";
+                phaseBadge.style.backgroundColor = "#f1c40f";
+                phaseDesc.innerText = "El magma comienza a subir por la chimenea. Se liberan gases volcánicos y vapor constante.";
+                
+                // Transición del cielo a un tono más oscuro según sube el valor
+                let skyFactor = (val - 15) / 35;
+                stage.style.background = `linear-gradient(to bottom, #4a69bd 0%, #1e3799 100%)`;
+                ground.style.backgroundColor = "#23471e";
+
+                craterLava.style.opacity = (val / 50).toFixed(2);
+                lavaRiver1.style.height = "0%";
+                lavaRiver2.style.height = "0%";
+
+                // Humo suave progresivo
+                let delay = 600 - (val * 8);
+                particleInterval = setInterval(() => {
+                    createSmoke(false, val);
+                }, Math.max(delay, 150));
+            } 
+
+            // --- FASE INTERMEDIA: ACTIVIDAD ALTA / PRE-ERUPCIÓN (51% - 75%) ---
+            else if (val > 50 && val <= 75) {
+                phaseBadge.innerText = "2. Volcán Activo (Alta Presión)";
+                phaseBadge.style.backgroundColor = "#e67e22";
+                phaseDesc.innerText = "Alta acumulación de gases. El magma ha llegado al cráter, se perciben ligeros sismos y la lava comienza a desbordarse.";
+                
+                stage.style.background = "linear-gradient(to bottom, #2c3e50 0%, #8e44ad 100%)";
+                sun.style.backgroundColor = "#e74c3c";
+                sun.style.boxShadow = "0 0 25px #e74c3c";
+                ground.style.backgroundColor = "#3e423a";
+
+                craterLava.style.opacity = "1";
+                
+                // Desborde de lava controlado según porcentaje
+                let riverHeight = ((val - 50) / 25) * 50;
+                lavaRiver1.style.opacity = "1";
+                lavaRiver1.style.height = `${riverHeight}%`;
+                lavaRiver2.style.opacity = "1";
+                lavaRiver2.style.height = `${riverHeight * 0.7}%`;
+
+                volcanoContainer.classList.add('shake-light');
+
+                // Humo más oscuro y pequeñas chispas de lava
+                particleInterval = setInterval(() => {
+                    createSmoke(true, val);
+                    if (Math.random() > 0.4) createLavaParticle(val);
+                }, 120);
+            } 
+
+            // --- FASE 3: ERUPCIÓN MÁXIMA (76% - 100%) ---
+            else {
+                phaseBadge.innerText = "3. ¡ERUPCIÓN VIOLENTA!";
+                phaseBadge.style.backgroundColor = "#e74c3c";
+                phaseDesc.innerText = "¡Erupción explosiva! Ríos de lava fluyen velozmente, se proyectan rocas incandescentes y el terreno tiembla con fuerza.";
+                
+                stage.style.background = "linear-gradient(to bottom, #111 0%, #c0392b 100%)";
+                sun.style.backgroundColor = "#ff7675";
+                sun.style.boxShadow = "0 0 40px #ff7675";
+                ground.style.backgroundColor = "#2d3436"; // Suelo cubierto de ceniza
+
+                craterLava.style.opacity = "1";
+                
+                // Rios de lava completos
+                let lavaProgress = 50 + (((val - 75) / 25) * 40);
+                lavaRiver1.style.opacity = "1";
+                lavaRiver1.style.height = `${lavaProgress}%`;
+                lavaRiver2.style.opacity = "1";
+                lavaRiver2.style.height = `${lavaProgress * 0.8}%`;
+
+                volcanoContainer.classList.add('shake-heavy');
+
+                // Explosiones masivas de humo y proyectiles de lava
+                particleInterval = setInterval(() => {
+                    createSmoke(true, val);
+                    createLavaParticle(val);
+                    createLavaParticle(val);
+                    // A partir del 100%, brotan trazos extra de lava del volcán
+                    if (val >= 100 && Math.random() > 0.8) createLavaStream();
+                }, 60);
+            }
+
+            updateHouses(val);
+        }
+
+        // Destruye las casas progresivamente entre 70%-85%; a partir de ahí quedan
+        // como restos negros y planos (ceniza/escombros calcinados).
+        function updateHouses(val) {
+            for (const house of housesContainer.children) {
+                if (val <= 70) {
+                    house.style.filter = '';
+                    house.style.opacity = '1';
+                    house.style.transform = house._baseTransform;
+                    continue;
+                }
+                const t = Math.min(Math.max((val - house._collapseStart) / (85 - house._collapseStart), 0), 1);
+                house.style.filter = `brightness(${(1 - t).toFixed(2)}) saturate(${(1 - t).toFixed(2)})`;
+                house.style.opacity = `${(1 - t * 0.25).toFixed(2)}`;
+                house.style.transform = `${house._baseTransform} scaleY(${(1 - t * 0.65).toFixed(2)}) rotate(${(t * 14 - 6).toFixed(1)}deg)`;
+            }
+        }
+
+        // Crear partícula(s) de humo — dos bocanadas por llamada para más densidad
+        function createSmoke(isDark, val) {
+            for (let p = 0; p < 2; p++) {
+                const smoke = document.createElement('div');
+                smoke.classList.add('smoke-particle');
+
+                const size = Math.random() * (val / 2) + 25;
+                smoke.style.width = `${size}px`;
+                smoke.style.height = `${size}px`;
+
+                smoke.style.left = `calc(50% + ${Math.random() * 50 - 25}px)`;
+                smoke.style.top = '100px';
+
+                if (isDark) {
+                    smoke.style.backgroundColor = `rgba(50, 50, 50, ${Math.min(val / 100, 0.9)})`;
+                } else {
+                    smoke.style.backgroundColor = 'rgba(220, 220, 220, 0.75)';
+                }
+
+                particleContainer.appendChild(smoke);
+
+                setTimeout(() => {
+                    smoke.remove();
+                }, 2500);
+            }
+        }
+
+        // Crear fragmentos de lava proyectados
+        function createLavaParticle(val) {
+            const lava = document.createElement('div');
+            lava.classList.add('lava-particle');
+
+            const size = Math.random() * 8 + 4;
+            lava.style.width = `${size}px`;
+            lava.style.height = `${size}px`;
+
+            // Punto de salida variable dentro del cráter, no siempre el mismo pixel
+            const spawnOffset = (Math.random() - 0.5) * 24;
+            lava.style.left = `calc(50% + ${spawnOffset}px)`;
+            lava.style.top = '110px';
+
+            // Cada partícula tiene su propia fuerza, arco y caída: nunca la misma trayectoria
+            const force = (val / 100) * 280;
+            const dx = (Math.random() - 0.5) * force * (0.6 + Math.random() * 0.8);
+            const peak = -(Math.random() * (force * 0.6) + 30);
+            const fall = Math.random() * (force * 0.6) + 60;
+            const duration = 0.9 + Math.random() * 0.9;
+
+            lava.style.setProperty('--dx', `${dx}px`);
+            lava.style.setProperty('--peak', `${peak}px`);
+            lava.style.setProperty('--dy', `${peak + fall}px`);
+            lava.style.animationDuration = `${duration}s`;
+
+            particleContainer.appendChild(lava);
+
+            setTimeout(() => {
+                lava.remove();
+            }, duration * 1000);
+        }
+
+        // Nubes procedurales: nacen a la izquierda y viajan a la derecha,
+        // sin importar la fase del volcán (intervalo propio, nunca se limpia)
+        function spawnCloud(startX) {
+            const cloud = document.createElement('div');
+            cloud.classList.add('cloud');
+
+            const width = Math.random() * 70 + 70;
+            const height = width * 0.4;
+            cloud.style.width = `${width}px`;
+            cloud.style.height = `${height}px`;
+            cloud.style.top = `${Math.random() * 45 + 5}%`;
+            cloud.style.opacity = (Math.random() * 0.3 + 0.6).toFixed(2);
+
+            const containerWidth = stage.clientWidth;
+            const left = startX !== undefined ? startX : -width;
+            cloud.style.left = `${left}px`;
+
+            const speed = 22 + Math.random() * 15; // px/s aprox
+            const distance = containerWidth - left + width;
+            const duration = distance / speed;
+            cloud.style.setProperty('--dist', `${distance}px`);
+            cloud.style.animationDuration = `${duration}s`;
+
+            cloudContainer.appendChild(cloud);
+            setTimeout(() => cloud.remove(), duration * 1000);
+        }
+
+        // Poblar el cielo al cargar para que no empiece vacío
+        [0.1, 0.4, 0.7].forEach(f => spawnCloud(stage.clientWidth * f));
+        setInterval(() => spawnCloud(), 4000 + Math.random() * 3000);
+
+        // Trazo extra de lava brotando del cráter (solo erupción al 100%)
+        function createLavaStream() {
+            const stream = document.createElement('div');
+            stream.classList.add('lava-stream');
+
+            const left = 30 + Math.random() * 40; // % ceñido a la boca real del cráter (30%-70%)
+            const width = Math.random() * 6 + 4;
+            stream.style.left = `${left}%`;
+            stream.style.width = `${width}px`;
+
+            const targetHeight = 40 + Math.random() * 50;
+            const duration = 1 + Math.random() * 1.2;
+            stream.style.transition = `height ${duration}s ease, opacity ${duration}s ease`;
+
+            volcanoContainer.appendChild(stream);
+            requestAnimationFrame(() => {
+                stream.style.opacity = '1';
+                stream.style.height = `${targetHeight}%`;
+            });
+
+            setTimeout(() => { stream.style.opacity = '0'; }, duration * 700);
+            setTimeout(() => stream.remove(), duration * 1000 + 400);
+        }
+
+        // Casita estilo icono plano (techo, chimenea, puerta en arco, 2 ventanas, base)
+        function houseSVG() {
+            return `<svg viewBox="0 0 100 100" width="100%" height="100%">
+                <rect x="66" y="6" width="11" height="17" fill="#8e2f27"/>
+                <path d="M8,50 L50,12 L92,50" fill="none" stroke="#d9524a" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="15" y="45" width="70" height="47" fill="#3bb6ad"/>
+                <rect x="22" y="55" width="13" height="11" fill="#1f2d3d"/>
+                <rect x="20" y="66" width="17" height="2.5" fill="#16212e"/>
+                <rect x="65" y="55" width="13" height="11" fill="#1f2d3d"/>
+                <rect x="63" y="66" width="17" height="2.5" fill="#16212e"/>
+                <path d="M43,92 v-19 a7,7 0 0 1 14,0 v19 z" fill="#1f2d3d"/>
+                <circle cx="45.5" cy="79" r="1.6" fill="#0c1319"/>
+                <rect x="5" y="90" width="90" height="8" fill="#16212e"/>
+            </svg>`;
+        }
+
+        // Reparte varias casas por toda la franja verde sin que se superpongan;
+        // las que caen detrás del volcán quedan tapadas por su silueta (z-index)
+        function layoutHouses() {
+            housesContainer.innerHTML = '';
+            const stageWidth = stage.clientWidth;
+            const houseWidth = 100;
+            const minGap = 12;
+            const margin = 10;
+            const slot = houseWidth + minGap;
+            const count = Math.floor((stageWidth - margin * 2 + minGap) / slot);
+
+            for (let i = 0; i < count; i++) {
+                const slotStart = margin + i * slot;
+                const jitterX = Math.random() * (minGap * 0.7);
+                // profundidad al azar: más cerca (abajo, hundida en el pasto, más grande)
+                // o más lejos (arriba, sobre la franja verde, más pequeña) — rompe el alineado
+                const closeness = Math.random();
+                const bottom = 20 - closeness * 38;
+                const scale = 0.8 + closeness * 0.35;
+
+                const house = document.createElement('div');
+                house.classList.add('house');
+                house.style.left = `${slotStart + jitterX}px`;
+                house.style.bottom = `${bottom}px`;
+                house.style.transformOrigin = 'center bottom';
+                house._baseTransform = `scale(${scale.toFixed(2)})`;
+                house.style.transform = house._baseTransform;
+                house._collapseStart = 70 + Math.random() * 8; // 70%-78%: arranque escalonado de cada casa
+                house.innerHTML = houseSVG();
+                housesContainer.appendChild(house);
+            }
+        }
+
+        // Palmera estilizada: tronco curvo + hojas en abanico (una sola forma rotada)
+        function palmSVG() {
+            const leaf = 'M0,0 C15,-8 30,-2 38,10 C25,8 12,6 0,0 Z';
+            const angles = [-45, -18, 8, 34, 60];
+            const colors = ['#2e7d4f', '#3a9c63', '#2e7d4f', '#3a9c63', '#2e7d4f'];
+            const fronds = angles.map((a, i) =>
+                `<path d="${leaf}" fill="${colors[i]}" transform="rotate(${a})"/>`
+            ).join('');
+            return `<svg viewBox="0 0 60 120" width="100%" height="100%">
+                <path d="M30,120 C24,90 34,60 27,22" stroke="#8a5a34" stroke-width="6" fill="none" stroke-linecap="round"/>
+                <g transform="translate(27,22)">${fronds}</g>
+            </svg>`;
+        }
+
+        // Un par de palmeras cerca de cada borde, delante de las montañas laterales
+        function layoutPalms() {
+            palmContainer.innerHTML = '';
+            const stageWidth = stage.clientWidth;
+            const spots = [18, 55, stageWidth - 45, stageWidth - 85];
+            spots.forEach(x => {
+                const palm = document.createElement('div');
+                palm.classList.add('palm');
+                palm.style.left = `${x}px`;
+                const scale = 0.85 + Math.random() * 0.3;
+                palm.style.transform = `scale(${scale.toFixed(2)})`;
+                palm.style.transformOrigin = 'center bottom';
+                // palm.innerHTML = palmSVG();
+                palmContainer.appendChild(palm);
+            });
+        }
+
+        layoutHouses();
+        layoutPalms();
+        window.addEventListener('resize', () => {
+            layoutHouses();
+            layoutPalms();
+        });
+
+        // Inicializar simulador en estado Inactivo (0%)
+        updateVolcano(0);
+    </script>
+</body>
+</html>
