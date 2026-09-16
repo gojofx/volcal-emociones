@@ -136,6 +136,26 @@
             transition: background-color 0.3s, opacity 0.4s ease;
         }
 
+        /* Textura rocosa: vetas de un tono más claro que la base, recortadas a la
+           misma silueta del cono, en forma de ondas fijas (sin animación). */
+        .volcano::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(30% 25%, 70% 25%, 100% 100%, 0% 100%);
+            background: repeating-linear-gradient(
+                170deg,
+                rgba(107, 83, 68, 0.55) 0px,
+                rgba(107, 83, 68, 0.55) 12px,
+                transparent 12px,
+                transparent 32px
+            );
+            background-size: 160% 160%;
+            pointer-events: none;
+        }
+
         .volcano-details {
             position: absolute;
             bottom: 0;
