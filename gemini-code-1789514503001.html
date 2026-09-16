@@ -130,7 +130,7 @@
             height: 100%;
             background-color: #4a3b32;
             clip-path: polygon(30% 25%, 70% 25%, 100% 100%, 0% 100%);
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, opacity 0.4s ease;
         }
 
         .volcano-details {
@@ -140,6 +140,84 @@
             height: 100%;
             background-color: #382c25;
             clip-path: polygon(45% 25%, 70% 25%, 100% 100%, 55% 100%);
+            transition: opacity 0.4s ease;
+        }
+
+        /* Corte interior: se revela con el mismo contorno del volcán al pasar el mouse.
+           z-index por encima del cráter/ríos de lava (z-index:2) para que la animación
+           de olas del conducto no quede tapada por ellos. */
+        .volcano-interior {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(30% 25%, 70% 25%, 100% 100%, 0% 100%);
+            background: linear-gradient(180deg, #6b5344 0%, #4a3b32 55%, #3a2d25 100%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        /* Chimenea: conducto de magma que sube hacia el cráter. El borde superior no es
+           recto: una máscara con forma de ola recorta el propio contorno de la superficie,
+           y esa máscara se anima para que la ola "viaje" y esconda el borde recto. */
+        .volcano-interior::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            width: 40%;
+            height: var(--conduit-height, 25%);
+            transition: height 0.3s ease;
+            background: linear-gradient(180deg, #ff3838 0%, #ff8c00 60%, #ffd23f 100%);
+            -webkit-mask:
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16"><path d="M0,8 C8,2 8,2 16,8 C24,14 24,14 32,8 L32,16 L0,16 Z" fill="white"/></svg>') top / 32px 16px repeat-x,
+                linear-gradient(#fff, #fff) 0 16px / 100% calc(100% - 16px) no-repeat;
+            mask:
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 16"><path d="M0,8 C8,2 8,2 16,8 C24,14 24,14 32,8 L32,16 L0,16 Z" fill="white"/></svg>') top / 32px 16px repeat-x,
+                linear-gradient(#fff, #fff) 0 16px / 100% calc(100% - 16px) no-repeat;
+            transform: translateX(-50%);
+            box-shadow: 0 0 25px 6px rgba(255, 87, 34, 0.55);
+            animation: magmaSurface 1.4s linear infinite;
+        }
+
+        @keyframes magmaSurface {
+            from {
+                -webkit-mask-position: 0 0, 0 16px;
+                mask-position: 0 0, 0 16px;
+            }
+            to {
+                -webkit-mask-position: -32px 0, 0 16px;
+                mask-position: -32px 0, 0 16px;
+            }
+        }
+
+        @keyframes magmaWaves {
+            from { background-position: 0 0, 0 0; }
+            to { background-position: 0 28px, 0 0; }
+        }
+
+        /* Cámara magmática en la base */
+        .volcano-interior::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 0%;
+            width: 80%;
+            height: 20%;
+            background: radial-gradient(circle, #fffa65 0%, #ff3838 60%, #c0392b 85%, transparent 100%);
+            border-radius: 50%;
+            transform: translateX(-50%);
+        }
+
+        .volcano-container:hover .volcano,
+        .volcano-container:hover .volcano-details {
+            opacity: 0;
+        }
+
+        .volcano-container:hover .volcano-interior {
+            opacity: 1;
         }
 
         /* Cráter (Magma interno) */
@@ -170,22 +248,25 @@
             left: 48%;
             width: 14px;
             height: 0%;
-            background: linear-gradient(to bottom, #fffa65, #ff3838, #c0392b);
+            background:
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.25) 0px, rgba(255,255,255,0.25) 3px, transparent 3px, transparent 14px),
+                linear-gradient(to bottom, #fffa65, #ff3838, #c0392b);
+            background-size: 100% 28px, 100% 100%;
             border-radius: 8px;
             box-shadow: 0 0 10px #ff3838;
             opacity: 0;
             transition: height 0.2s ease, opacity 0.2s ease;
+            animation: magmaWaves 1s linear infinite;
             z-index: 2;
         }
 
-        /* Trazos adicionales de lava, solo en erupción máxima (100%) */
+        /* Gotas de lava: nacen cerca del cráter y caen como línea rígida hasta que
+           ambas puntas (cabeza y cola) llegan a la base del volcán (solo en 100%) */
         .lava-stream {
             position: absolute;
-            top: 25%;
-            height: 0%;
             opacity: 0;
             background: linear-gradient(to bottom, #fffa65, #ff3838, #c0392b);
-            border-radius: 8px;
+            border-radius: 50% 50% 8px 8px;
             box-shadow: 0 0 10px #ff3838;
             z-index: 2;
         }
@@ -196,11 +277,15 @@
             left: 38%;
             width: 10px;
             height: 0%;
-            background: linear-gradient(to bottom, #fffa65, #e74c3c);
+            background:
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.25) 0px, rgba(255,255,255,0.25) 3px, transparent 3px, transparent 14px),
+                linear-gradient(to bottom, #fffa65, #e74c3c);
+            background-size: 100% 28px, 100% 100%;
             border-radius: 8px;
             box-shadow: 0 0 10px #ff3838;
             opacity: 0;
             transition: height 0.2s ease, opacity 0.2s ease;
+            animation: magmaWaves 1s linear infinite;
             z-index: 2;
         }
 
@@ -240,11 +325,14 @@
             height: 115px;
         }
 
-        /* Montañas laterales que tapan los bordes del escenario */
+        /* Montañas laterales que tapan los bordes del escenario.
+           Escalan de forma continua con el ancho de pantalla (270px a 800px de
+           viewport, hasta 150px a 450px) en vez de saltar de golpe en un breakpoint,
+           y en pantallas chicas se achican para no tapar las casas. */
         .side-mountain {
             position: absolute;
             bottom: 0;
-            width: 270px;
+            width: clamp(150px, calc(34.29vw - 4.29px), 270px);
             height: 290px;
             background-color: #241f1c;
             z-index: 4;
@@ -253,13 +341,13 @@
 
         .side-mountain.left {
             left: -30px;
-            height: 190px;
-            height: 140px;
+            height: clamp(100px, calc(11.43vw + 48.57px), 140px);
             clip-path: polygon(0% 22.75%, 23.5% 28%, 70.39% 54.82%, 100% 100%, 0% 100%);
         }
 
         .side-mountain.right {
             right: -30px;
+            height: clamp(100px, calc(54.29vw - 144.29px), 290px);
             clip-path: polygon(0% 100%, 24.93% 83.9%, 55.84% 46.84%, 85.96% 29%, 100% 35.75%, 100% 100%);
         }
 
@@ -322,6 +410,42 @@
             margin-bottom: 20px;
             min-height: 40px;
         }
+
+        /* Botones "¿Qué tipo de volcán eres?" */
+        .type-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .type-btn {
+            flex: 1;
+            min-width: 110px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+            color: #eee;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.1s ease;
+        }
+
+        .type-btn:hover {
+            background: rgba(255, 255, 255, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .type-btn.active {
+            border-color: transparent;
+        }
+
+        .type-btn[data-type="inactivo"].active { background: #2ecc71; color: #06210f; }
+        .type-btn[data-type="activo"].active { background: #e67e22; color: #2a1400; }
+        .type-btn[data-type="erupcion"].active { background: #e74c3c; color: #2a0a06; }
 
         /* Estilo del Deslizador (Slider) */
         .slider-container {
@@ -429,7 +553,7 @@
 </head>
 <body>
 
-    <h1>🌋 Simulador de Presión Volcánica</h1>
+    <h1>Volcán del Estrés</h1>
 
     <!-- Escenario Visual -->
     <div class="stage" id="stage">
@@ -440,6 +564,7 @@
         <div class="volcano-container" id="volcanoContainer">
             <div class="volcano"></div>
             <div class="volcano-details"></div>
+            <div class="volcano-interior"></div>
             <div class="crater">
                 <div class="crater-lava" id="craterLava"></div>
             </div>
@@ -457,7 +582,7 @@
     <!-- Controladores e Información -->
     <div class="control-panel">
         <div class="status-header">
-            <h2 id="activityLevel">Presión del Magma: 0%</h2>
+            <h2 id="activityLevel">¿Qué tipo de volcán eres?: 0%</h2>
             <span class="phase-badge" id="phaseBadge">1. Volcán Inactivo</span>
         </div>
         
@@ -465,12 +590,17 @@
             El volcán se encuentra en reposo absoluto. El cielo está despejado y la naturaleza a su alrededor está a salvo.
         </p>
 
+        <div class="type-buttons" id="typeButtons">
+            <button type="button" class="type-btn" data-type="inactivo" onclick="setVolcanoType(10)">Inactivo</button>
+            <button type="button" class="type-btn" data-type="activo" onclick="setVolcanoType(60)">Activo</button>
+            <button type="button" class="type-btn" data-type="erupcion" onclick="setVolcanoType(90)">Erupción</button>
+        </div>
+
         <div class="slider-container">
             <input type="range" id="volcanoSlider" min="0" max="100" value="0" oninput="updateVolcano(this.value)">
             <div class="ticks">
                 <span>0% (Inactivo)</span>
-                <span>35% (Activo - Fase Inicial)</span>
-                <span>70% (Activo - Alta Presión)</span>
+                <span>50% (Activo - Alta Presión)</span>
                 <span>100% (Erupción)</span>
             </div>
         </div>
@@ -492,12 +622,30 @@
         const activityLevel = document.getElementById('activityLevel');
         const phaseBadge = document.getElementById('phaseBadge');
         const phaseDesc = document.getElementById('phaseDesc');
+        const volcanoSlider = document.getElementById('volcanoSlider');
+        const typeButtons = document.getElementById('typeButtons');
 
         let particleInterval = null;
 
+        // Botones de acceso rápido a cada tipo de volcán: mueven el slider y disparan
+        // la misma actualización que arrastrarlo a mano.
+        function setVolcanoType(val) {
+            volcanoSlider.value = val;
+            updateVolcano(val);
+        }
+
+        // Resalta el botón cuyo rango coincide con el valor actual del slider,
+        // usando los mismos umbrales de fase que updateVolcano.
+        function updateTypeButtons(val) {
+            const type = val <= 50 ? 'inactivo' : val <= 75 ? 'activo' : 'erupcion';
+            for (const btn of typeButtons.children) {
+                btn.classList.toggle('active', btn.dataset.type === type);
+            }
+        }
+
         function updateVolcano(val) {
             val = parseInt(val);
-            activityLevel.innerText = `Presión del Magma: ${val}%`;
+            activityLevel.innerText = `¿Cuanto estrés tienes ahora?: ${val}%`;
 
             // Limpieza de intervalos y efectos de temblor
             if (particleInterval) clearInterval(particleInterval);
@@ -509,7 +657,7 @@
             if (val <= 15) {
                 phaseBadge.innerText = "1. Volcán Inactivo";
                 phaseBadge.style.backgroundColor = "#2ecc71";
-                phaseDesc.innerText = "El volcán se encuentra en reposo absoluto. El ambiente está en calma sin signos de erupción.";
+                phaseDesc.innerText = "Se me dificulta mucho expresar mis emociones. Cuando estoy en situaciones de estrés no hablo con nadie, me aparto de los demás y me aíslo de lo que me rodea. No he logrado encontrar una manera de expresar mis sentimientos.";
                 
                 stage.style.background = "#74b9ff";
                 sun.style.backgroundColor = "#ffd700";
@@ -524,10 +672,10 @@
             } 
             
             // --- FASE INTERMEDIA: ACTIVIDAD INICIAL / AUMENTO DE PRESIÓN (16% - 50%) ---
-            else if (val > 15 && val <= 50) {
-                phaseBadge.innerText = "2. Volcán Activo (Fase Inicial)";
-                phaseBadge.style.backgroundColor = "#f1c40f";
-                phaseDesc.innerText = "El magma comienza a subir por la chimenea. Se liberan gases volcánicos y vapor constante.";
+            else if (val > 15 && val < 50) {
+                phaseBadge.innerText = "1. Volcán Inactivo";
+                phaseBadge.style.backgroundColor = "#2ecc71";
+                phaseDesc.innerText = "Se me dificulta mucho expresar mis emociones. Cuando estoy en situaciones de estrés no hablo con nadie, me aparto de los demás y me aíslo de lo que me rodea. No he logrado encontrar una manera de expresar mis sentimientos.";
                 
                 // Transición del cielo a un tono más oscuro según sube el valor
                 let skyFactor = (val - 15) / 35;
@@ -546,10 +694,10 @@
             } 
 
             // --- FASE INTERMEDIA: ACTIVIDAD ALTA / PRE-ERUPCIÓN (51% - 75%) ---
-            else if (val > 50 && val <= 75) {
+            else if (val >= 50 && val <= 75) {
                 phaseBadge.innerText = "2. Volcán Activo (Alta Presión)";
                 phaseBadge.style.backgroundColor = "#e67e22";
-                phaseDesc.innerText = "Alta acumulación de gases. El magma ha llegado al cráter, se perciben ligeros sismos y la lava comienza a desbordarse.";
+                phaseDesc.innerText = "Logro expresar mis emociones constantemente. Aunque existen situaciones que me producen estrés he logrado autoconocerme y controlar mi reacción para así no afectar a las demás personas. Si llego a afectar a alguien busco la manera de solucionarlo.";
                 
                 stage.style.background = "linear-gradient(to bottom, #2c3e50 0%, #8e44ad 100%)";
                 sun.style.backgroundColor = "#e74c3c";
@@ -578,7 +726,7 @@
             else {
                 phaseBadge.innerText = "3. ¡ERUPCIÓN VIOLENTA!";
                 phaseBadge.style.backgroundColor = "#e74c3c";
-                phaseDesc.innerText = "¡Erupción explosiva! Ríos de lava fluyen velozmente, se proyectan rocas incandescentes y el terreno tiembla con fuerza.";
+                phaseDesc.innerText = "Cuando estoy en situaciones de estrés no logro controlar mis emociones. En estas situaciones he llegado a agredir física y/o verbalmente a otras personas o a mí mismo/a. Se me dificulta pedir perdón o reparar el daño causado.";
                 
                 stage.style.background = "linear-gradient(to bottom, #111 0%, #c0392b 100%)";
                 sun.style.backgroundColor = "#ff7675";
@@ -607,6 +755,25 @@
             }
 
             updateHouses(val);
+            updateClouds(val);
+            updateConduit(val);
+            updateTypeButtons(val);
+        }
+
+        // Sube el nivel de magma del conducto interior de 25% a 78% de forma progresiva
+        // entre 0% y 50% de presión; de ahí en adelante se mantiene en su punto máximo.
+        function updateConduit(val) {
+            const t = Math.min(val, 50) / 50;
+            const height = 25 + t * (78 - 25);
+            volcanoContainer.style.setProperty('--conduit-height', `${height}%`);
+        }
+
+        // Oscurece las nubes entre 50%-75% (ceniza en el ambiente); de ahí en
+        // adelante se quedan en su punto más oscuro.
+        function updateClouds(val) {
+            const t = Math.min(Math.max((val - 50) / 25, 0), 1);
+            const brightness = 1 - t * 0.8;
+            cloudContainer.style.filter = t > 0 ? `brightness(${brightness.toFixed(2)})` : '';
         }
 
         // Destruye las casas progresivamente entre 70%-85%; a partir de ahí quedan
@@ -717,7 +884,8 @@
         [0.1, 0.4, 0.7].forEach(f => spawnCloud(stage.clientWidth * f));
         setInterval(() => spawnCloud(), 4000 + Math.random() * 3000);
 
-        // Trazo extra de lava brotando del cráter (solo erupción al 100%)
+        // Gota de lava que nace junto al cráter y cae como línea rígida: se traslada
+        // entera (cabeza y cola) hasta que la punta trasera también llega a la base.
         function createLavaStream() {
             const stream = document.createElement('div');
             stream.classList.add('lava-stream');
@@ -727,14 +895,20 @@
             stream.style.left = `${left}%`;
             stream.style.width = `${width}px`;
 
-            const targetHeight = 40 + Math.random() * 50;
+            const containerHeight = volcanoContainer.clientHeight;
+            const startTop = containerHeight * 0.25; // altura del cráter
+            const dropLength = 30 + Math.random() * 35; // "gota grande": largo de la línea
+            stream.style.top = `${startTop}px`;
+            stream.style.height = `${dropLength}px`;
+
+            const travel = containerHeight - startTop; // hasta que la punta trasera toque la base
             const duration = 1 + Math.random() * 1.2;
-            stream.style.transition = `height ${duration}s ease, opacity ${duration}s ease`;
+            stream.style.transition = `transform ${duration}s linear, opacity ${duration}s ease`;
 
             volcanoContainer.appendChild(stream);
             requestAnimationFrame(() => {
                 stream.style.opacity = '1';
-                stream.style.height = `${targetHeight}%`;
+                stream.style.transform = `translateY(${travel}px)`;
             });
 
             setTimeout(() => { stream.style.opacity = '0'; }, duration * 700);
