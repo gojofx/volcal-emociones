@@ -681,6 +681,44 @@
             75% { transform: translate(-0.12px, -0.25px); }
             100% { transform: translate(0.12px, 0.12px); }
         }
+
+        /* Control de volumen del SFX de fondo (ocean.aac) */
+        .audio-control {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(4px);
+            padding: 6px 12px;
+            border-radius: 20px;
+            z-index: 10;
+        }
+
+        .audio-control button {
+            background: none;
+            border: none;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .audio-control input[type="range"] {
+            width: 70px;
+            height: 4px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .audio-control input[type="range"]::-webkit-slider-thumb {
+            width: 12px;
+            height: 12px;
+            border: 2px solid #333;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -710,7 +748,19 @@
         <div class="side-mountain right"></div>
         <div class="ground" id="ground"></div>
         <div class="ground-sea" id="ground-sea"></div>
+
+        <div class="audio-control" id="audioControl">
+            <button type="button" id="audioToggle" onclick="toggleOceanAudio()" aria-label="Silenciar o reactivar todos los sonidos">🔇</button>
+            <!-- <input type="range" id="volumeSlider" min="0" max="100" value="50" oninput="setOceanVolume(this.value)" aria-label="Volumen del sonido del mar"> -->
+        </div>
     </div>
+
+    <audio id="oceanAudio" src="media/sea.aac" preload="auto"></audio>
+    <audio id="erupcionAudio" src="media/eruption.aac" preload="auto"></audio>
+    <audio id="shakingAudio" src="media/shaking.m4a" preload="auto"></audio>
+    <audio id="initialFireAudio" src="media/initial_fire.m4a" preload="auto"></audio>
+    <audio id="fireWhooshAudio" src="media/fire_whoosh.aac" preload="auto"></audio>
+    <audio id="lavaAudio" src="media/lava.m4a" preload="auto"></audio>
 
     <!-- Controladores e Información -->
     <div class="control-panel">
@@ -763,8 +813,164 @@
         const phaseDesc = document.getElementById('phaseDesc');
         const volcanoSlider = document.getElementById('volcanoSlider');
         const typeButtons = document.getElementById('typeButtons');
+        const oceanAudio = document.getElementById('oceanAudio');
+        const audioToggle = document.getElementById('audioToggle');
+        const erupcionAudio = document.getElementById('erupcionAudio');
+        const shakingAudio = document.getElementById('shakingAudio');
+        const fireWhooshAudio = document.getElementById('fireWhooshAudio');
+        const lavaAudio = document.getElementById('lavaAudio');
+        //const volumeSlider = document.getElementById('volumeSlider');
 
         let particleInterval = null;
+        let lastVal = 0; // último valor del slider, para detectar el cruce hacia 50%
+
+        // Los .aac quedan con ~0.5s de silencio al principio Y al final (típico del
+        // encoder priming/padding de AAC), así que el `loop` nativo del navegador
+        // reproduce ese hueco en cada vuelta. Se maneja el reinicio a mano: se salta
+        // el silencio inicial al arrancar/reiniciar, y se relanza un poco ANTES de
+        // llegar al silencio final, para que el corte no se escuche.
+        function setupSeamlessLoop(audioEl, leadSilence = 0.5, trailSilence = 0.5) {
+            audioEl.loop = false;
+
+            function restart() {
+                audioEl.currentTime = leadSilence;
+                audioEl.play().catch(() => {});
+            }
+
+            audioEl.addEventListener('loadedmetadata', () => {
+                if (audioEl.currentTime < leadSilence) audioEl.currentTime = leadSilence;
+            });
+
+            audioEl.addEventListener('timeupdate', () => {
+                if (audioEl.duration && audioEl.currentTime >= audioEl.duration - trailSilence) {
+                    restart();
+                }
+            });
+
+            audioEl.addEventListener('ended', restart); // red de seguridad
+        }
+
+        // Baja el volumen de audioEl a 0 a lo largo de `duration` ms y llama a
+        // onComplete (normalmente para pausar y dejarlo listo para la próxima vez).
+        // Reutilizado por cualquier SFX que necesite un fade-out.
+        function fadeOutVolume(audioEl, duration, onComplete) {
+            clearInterval(audioEl._fadeInterval);
+            const steps = 16;
+            const stepTime = duration / steps;
+            const startVolume = audioEl.volume;
+            let step = 0;
+            audioEl._fadeInterval = setInterval(() => {
+                step++;
+                audioEl.volume = Math.max(0, startVolume * (1 - step / steps));
+                if (step >= steps) {
+                    clearInterval(audioEl._fadeInterval);
+                    if (onComplete) onComplete(startVolume);
+                }
+            }, stepTime);
+        }
+
+        // SFX que disparan un solo disparo al cruzar hacia 50%+, con fade-out corto
+        // si el valor cae de golpe por debajo de 50 mientras todavía están sonando.
+        // startOffset salta el silencio inicial del archivo (ver setupSeamlessLoop).
+        function createThresholdSFX(audioEl, volume = 1, startOffset = 0) {
+            function play() {
+                clearInterval(audioEl._fadeInterval);
+                audioEl.volume = volume;
+                audioEl.currentTime = startOffset;
+                audioEl.play().catch(() => {});
+            }
+
+            function fadeOut(duration = 800) {
+                if (audioEl.paused) return;
+                fadeOutVolume(audioEl, duration, (startVolume) => {
+                    audioEl.pause();
+                    audioEl.currentTime = startOffset;
+                    audioEl.volume = startVolume; // listo para la próxima vez
+                });
+            }
+
+            return { play, fadeOut };
+        }
+
+        // Calibrador de volumen de eruption.aac: cambiar este número (0 a 1) a mano.
+        const ERUPCION_VOLUME = 0.4;
+        const erupcionSFX = createThresholdSFX(erupcionAudio, ERUPCION_VOLUME);
+        const shakingSFX = createThresholdSFX(shakingAudio, 1, 0.5);
+        const fireWhooshSFX = createThresholdSFX(fireWhooshAudio, 1, 0.39); // salta el silencio inicial del archivo
+        const lavaSFX = createThresholdSFX(lavaAudio, 1, 0.5); // salta el silencio inicial del archivo
+        setupSeamlessLoop(shakingAudio);
+        setupSeamlessLoop(oceanAudio);
+
+        // initial_fire: suena mientras el estrés está en (15%, 50%].
+        // - Entrando desde abajo (<=15): arranca desde el principio (intro) y al
+        //   terminar hace loop desde FIRE_LOOP_POINT (6.67s) para siempre.
+        // - Entrando desde arriba (>50, retrocediendo): arranca directo en el loop,
+        //   sin repetir la intro.
+        // - Saliendo por abajo de 15: fade corto (800ms) y se detiene.
+        // - Saliendo por arriba de 50: fade de 2 segundos y se detiene (la erupción
+        //   y el temblor ya arrancan justo en ese cruce).
+        const initialFireAudio = document.getElementById('initialFireAudio');
+        const FIRE_LOOP_POINT = 6.67;
+        const fireVolume = 0.4;
+        let initialFireStartedAt = 0;
+
+        function playInitialFire(fromLoopPoint) {
+            clearInterval(initialFireAudio._fadeInterval);
+            initialFireAudio.volume = fireVolume;
+            initialFireAudio.currentTime = fromLoopPoint ? FIRE_LOOP_POINT : 0;
+            initialFireAudio.play().catch(() => {});
+            initialFireStartedAt = Date.now();
+        }
+
+        function stopInitialFire(duration) {
+            if (initialFireAudio.paused) return;
+            fadeOutVolume(initialFireAudio, duration, (startVolume) => {
+                initialFireAudio.pause();
+                initialFireAudio.currentTime = 0;
+                initialFireAudio.volume = startVolume;
+            });
+        }
+
+        // Si val supera 50% cuando initial_fire lleva sonando menos de 1 segundo (se
+        // pasó rápido por la fase 15%-50%), no tiene sentido el fade largo de 2s:
+        // se cancela con uno corto en su lugar.
+        function stopInitialFireOnEruption() {
+            const playedFor = Date.now() - initialFireStartedAt;
+            stopInitialFire(playedFor < 1000 ? 800 : 2000);
+        }
+
+        // Una vez arrancado (desde 0 o desde el loop point), al llegar al final
+        // siempre vuelve a sonar en bucle desde FIRE_LOOP_POINT.
+        initialFireAudio.addEventListener('ended', () => {
+            initialFireAudio.currentTime = FIRE_LOOP_POINT;
+            initialFireAudio.play().catch(() => {});
+        });
+
+        // SFX de fondo (oleaje cíclico). Arranca en pausa: los navegadores bloquean el
+        // autoplay con sonido hasta que haya un gesto del usuario, así que se reproduce
+        // recién cuando se toca el botón de mute/play.
+        oceanAudio.volume = 0.05;
+
+        // El botón es un mute maestro: silencia/reactiva TODOS los sonidos (el mar de
+        // fondo y cualquier SFX que esté sonando en ese momento), no solo el mar.
+        // Arranca muteado (el ícono inicial 🔇 lo refleja); el primer clic activa el sonido.
+        let audioMuted = true;
+        const allAudios = [oceanAudio, erupcionAudio, shakingAudio, initialFireAudio, fireWhooshAudio, lavaAudio];
+        allAudios.forEach(audio => { audio.muted = true; });
+
+        function toggleOceanAudio() {
+            audioMuted = !audioMuted;
+            for (const audio of allAudios) {
+                audio.muted = audioMuted;
+            }
+            audioToggle.textContent = audioMuted ? '🔇' : '🔊';
+
+            // El mar arranca recién con el primer gesto del usuario (política de
+            // autoplay); este clic cuenta como ese gesto.
+            if (!audioMuted && oceanAudio.paused) {
+                oceanAudio.play().catch(() => {});
+            }
+        }
 
         // Hora usada para el cielo de la fase de reposo (0%-15%) y la posición del sol.
         // Arranca en la hora real al abrir el archivo; el campo de pruebas la pisa.
@@ -835,6 +1041,44 @@
         function updateVolcano(val) {
             val = parseInt(val);
             activityLevel.innerText = `¿Qué tipo de volcán eres?: ${val}%`;
+
+            // SFX de erupción y de temblor: suenan una sola vez al AVANZAR de <50 hasta
+            // 50 o más. Si se retrocede desde 50+ hacia abajo, no vuelven a sonar desde
+            // el principio: lo que sonaba se apaga con un fade corto (no tiene sentido
+            // seguir reproduciendo el audio de una erupción que se canceló).
+            if (lastVal < 50 && val >= 50) {
+                erupcionSFX.play();
+                shakingSFX.play();
+            } else if (lastVal >= 50 && val < 50) {
+                erupcionSFX.fadeOut();
+                shakingSFX.fadeOut();
+            }
+
+            // lava: mismas reglas, pero arranca a partir de 75% y su fade es de 1s.
+            if (lastVal < 75 && val >= 75) {
+                lavaSFX.play();
+            } else if (lastVal >= 75 && val < 75) {
+                lavaSFX.fadeOut(1000);
+            }
+
+            // initial_fire: activo mientras 15 < val <= 50.
+            if (lastVal <= 15 && val > 15 && val <= 50) {
+                playInitialFire(false); // entra desde abajo: intro completa primero
+            } else if (lastVal > 50 && val > 15 && val <= 50) {
+                playInitialFire(true); // entra desde arriba: directo al loop
+            } else if (lastVal > 15 && lastVal <= 50 && val <= 15) {
+                stopInitialFire(800); // sale por abajo: fade corto
+            } else if (lastVal > 15 && lastVal <= 50 && val > 50) {
+                stopInitialFireOnEruption(); // sale por arriba: 2s, o corto si llevaba <1s sonando
+            }
+
+            // fire_whoosh: un solo disparo al BAJAR de cualquier valor por arriba de 15
+            // hasta 15 o menos (sin importar si venía de la zona media o de la erupción).
+            if (lastVal > 15 && val <= 15) {
+                fireWhooshSFX.play();
+            }
+
+            lastVal = val;
 
             // Limpieza de intervalos y efectos de temblor
             if (particleInterval) clearInterval(particleInterval);
